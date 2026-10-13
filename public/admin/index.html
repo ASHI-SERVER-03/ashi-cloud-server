@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ASHI ADMIN</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <strong>ASHI ADMIN</strong>
+        <span>Biblioteca cloud privada</span>
+      </div>
+      <button id="logout" type="button">Salir</button>
+    </header>
+
+    <section id="login-card" class="card">
+      <h1>Acceso propietario</h1>
+      <label>Email<input id="email" type="email" autocomplete="username"></label>
+      <label>Contrasena<input id="password" type="password" autocomplete="current-password"></label>
+      <button id="login" type="button">Entrar</button>
+    </section>
+
+    <section id="admin-card" class="card" hidden>
+      <div class="toolbar">
+        <button id="refresh" type="button">Actualizar</button>
+        <button id="new-template" type="button">Nueva plantilla</button>
+        <button id="stats" type="button">Estadisticas</button>
+      </div>
+      <div id="status"></div>
+      <div id="grid" class="grid"></div>
+      <h2>Editor JSON seguro</h2>
+      <textarea id="editor" spellcheck="false"></textarea>
+      <div class="toolbar">
+        <button id="save" type="button">Guardar</button>
+        <button id="publish" type="button">Publicar</button>
+        <button id="unpublish" type="button">Despublicar</button>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
