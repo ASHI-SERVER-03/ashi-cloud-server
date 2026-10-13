@@ -1,16 +1,17 @@
 import express from 'express';
 import { query } from '../db.js';
 import { publicTemplateRow } from '../validators.js';
-import { signedAssetUrl } from '../storage.js';
+import { hasS3Storage, signedAssetUrl } from '../storage.js';
 
 export const publicRouter = express.Router();
+const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
-publicRouter.get('/health', async (_req, res) => {
+publicRouter.get('/health', asyncRoute(async (_req, res) => {
   const db = await query('select 1 as ok');
   res.json({ ok: true, name: 'ASHI Cloud Server', db: db.rows[0].ok === 1 });
-});
+}));
 
-publicRouter.get('/api/v1/templates', async (req, res) => {
+publicRouter.get('/api/v1/templates', asyncRoute(async (req, res) => {
   const category = String(req.query.category || '').trim();
   const search = String(req.query.q || '').trim();
   const params = [];
@@ -34,9 +35,9 @@ publicRouter.get('/api/v1/templates', async (req, res) => {
     { count: rows.rowCount }
   ]);
   res.json({ ok: true, templates: rows.rows.map(publicTemplateRow), serverTime: new Date().toISOString() });
-});
+}));
 
-publicRouter.get('/api/v1/templates/:id/download', async (req, res) => {
+publicRouter.get('/api/v1/templates/:id/download', asyncRoute(async (req, res) => {
   const row = await query('select * from templates where template_id=$1 and published_at is not null and deleted_at is null', [req.params.id]);
   const template = row.rows[0];
   if (!template || !template.asset_key) return res.status(404).json({ ok: false, error: 'asset_not_found' });
@@ -50,13 +51,24 @@ publicRouter.get('/api/v1/templates/:id/download', async (req, res) => {
     ok: true,
     id: template.template_id,
     sha256: template.asset_sha256,
-    url: await signedAssetUrl(template.asset_key),
-    expiresInSeconds: 900
+    url: hasS3Storage() ? await signedAssetUrl(template.asset_key) : template.asset_url,
+    expiresInSeconds: hasS3Storage() ? 900 : null
   });
-});
+}));
 
-publicRouter.get('/api/v1/assets/:key', async (req, res) => {
+publicRouter.get('/api/v1/assets/:key', asyncRoute(async (req, res) => {
   const key = decodeURIComponent(req.params.key || '');
   if (!key || key.includes('..') || key.includes('\\')) return res.status(400).json({ ok: false, error: 'bad_key' });
-  res.redirect(await signedAssetUrl(key));
-});
+  try {
+    return res.redirect(await signedAssetUrl(key));
+  } catch (error) {
+    if (error.message !== 's3_not_configured') throw error;
+  }
+  const asset = await query('select file_name,content_type,sha256,body from asset_blobs where object_key=$1 limit 1', [key]);
+  const row = asset.rows[0];
+  if (!row) return res.status(404).json({ ok: false, error: 'asset_not_found' });
+  res.setHeader('Content-Type', row.content_type || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${String(row.file_name || 'ashi-asset.bin').replace(/"/g, '')}"`);
+  res.setHeader('X-ASHI-SHA256', row.sha256);
+  return res.send(row.body);
+}));

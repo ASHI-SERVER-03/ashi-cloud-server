@@ -13,6 +13,10 @@ export const s3 = new S3Client({
   forcePathStyle: !!config.s3.endpoint
 });
 
+export function hasS3Storage() {
+  return !!(config.s3.bucket && config.s3.accessKeyId && config.s3.secretAccessKey);
+}
+
 export function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
@@ -26,6 +30,9 @@ export function safeObjectKey(prefix, name) {
 }
 
 export async function putAsset({ key, body, contentType }) {
+  if (!hasS3Storage()) {
+    throw new Error('s3_not_configured');
+  }
   await s3.send(new PutObjectCommand({
     Bucket: config.s3.bucket,
     Key: key,
@@ -41,6 +48,9 @@ export async function putAsset({ key, body, contentType }) {
 }
 
 export async function signedAssetUrl(key) {
+  if (!hasS3Storage()) {
+    throw new Error('s3_not_configured');
+  }
   return getSignedUrl(s3, new GetObjectCommand({
     Bucket: config.s3.bucket,
     Key: key
