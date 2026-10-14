@@ -23,13 +23,21 @@ export async function login(email, password) {
   return jwt.sign({ sub: user.id, email: user.email, role: user.role }, config.jwtSecret, { expiresIn: '8h' });
 }
 
-export function requireAdmin(req, res, next) {
+export async function requireAdmin(req, res, next) {
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ ok: false, error: 'auth_required' });
+  let claims;
   try {
-    req.admin = jwt.verify(token, config.jwtSecret);
-    return next();
-  } catch {
-    return res.status(401).json({ ok: false, error: 'auth_invalid' });
+    claims = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+  } catch (error) {
+    return res.status(401).json({ ok: false, error: error.name === 'TokenExpiredError' ? 'auth_expired' : 'auth_invalid' });
   }
+  if (!claims.sub) return res.status(401).json({ ok: false, error: 'auth_invalid' });
+  try {
+    const result = await query('select id,email,role from admin_users where id=$1 and disabled_at is null', [claims.sub]);
+    const admin = result.rows[0];
+    if (!admin || admin.role !== 'owner') return res.status(403).json({ ok: false, error: 'admin_forbidden' });
+    req.admin = admin;
+    return next();
+  } catch (error) { return next(error); }
 }

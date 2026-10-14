@@ -45,7 +45,7 @@ adminRouter.post('/api/v1/admin/login', asyncRoute(async (req, res) => {
 
 adminRouter.get('/api/v1/admin/templates', requireAdmin, asyncRoute(async (_req, res) => {
   const rows = await query('select * from templates where deleted_at is null order by updated_at desc limit 500');
-  res.json({ ok: true, templates: rows.rows.map(publicTemplateRow) });
+  res.json({ ok: true, templates: rows.rows.map((row) => ({ ...publicTemplateRow(row), published: Boolean(row.published_at) })) });
 }));
 
 adminRouter.post('/api/v1/admin/templates', requireAdmin, asyncRoute(async (req, res) => {
@@ -65,19 +65,25 @@ adminRouter.patch('/api/v1/admin/templates/:id', requireAdmin, asyncRoute(async 
 
 adminRouter.post('/api/v1/admin/templates/:id/publish', requireAdmin, asyncRoute(async (req, res) => {
   const publish = req.body.publish !== false;
-  const result = await query('update templates set published_at=$2, updated_at=now() where template_id=$1 and deleted_at is null returning template_id', [
-    req.params.id,
-    publish ? new Date() : null
-  ]);
-  if (!result.rowCount) return res.status(404).json({ ok: false, error: 'not_found' });
-  await query('insert into audit_logs(actor, action, ip, meta) values($1,$2,$3,$4)', [req.admin.email, publish ? 'template.publish' : 'template.unpublish', req.ip, { id: req.params.id }]);
+  const changed = await transaction(async (client) => {
+    const result = await client.query('update templates set published_at=$2, updated_at=now() where template_id=$1 and deleted_at is null returning template_id', [req.params.id, publish ? new Date() : null]);
+    if (!result.rowCount) return false;
+    await client.query('insert into audit_logs(actor, action, ip, meta) values($1,$2,$3,$4)', [req.admin.email, publish ? 'template.publish' : 'template.unpublish', req.ip, { id: req.params.id }]);
+    return true;
+  });
+  if (!changed) return res.status(404).json({ ok: false, error: 'not_found' });
   res.json({ ok: true, id: req.params.id, published: publish });
 }));
 
 adminRouter.delete('/api/v1/admin/templates/:id', requireAdmin, asyncRoute(async (req, res) => {
-  await query('update templates set deleted_at=now(), updated_at=now() where template_id=$1', [req.params.id]);
-  await query('insert into audit_logs(actor, action, ip, meta) values($1,$2,$3,$4)', [req.admin.email, 'template.delete', req.ip, { id: req.params.id }]);
-  res.json({ ok: true });
+  const removed = await transaction(async (client) => {
+    const result = await client.query('update templates set deleted_at=now(), published_at=null, updated_at=now() where template_id=$1 and deleted_at is null returning template_id', [req.params.id]);
+    if (!result.rowCount) return false;
+    await client.query('insert into audit_logs(actor, action, ip, meta) values($1,$2,$3,$4)', [req.admin.email, 'template.delete', req.ip, { id: req.params.id }]);
+    return true;
+  });
+  if (!removed) return res.status(404).json({ ok: false, error: 'not_found' });
+  res.json({ ok: true, id: req.params.id, deleted: true });
 }));
 
 adminRouter.post('/api/v1/admin/templates/:id/assets', requireAdmin, upload.single('file'), asyncRoute(async (req, res) => {
@@ -85,6 +91,9 @@ adminRouter.post('/api/v1/admin/templates/:id/assets', requireAdmin, upload.sing
   const allowed = /\.(ffx|aep|jsx|jpg|jpeg|png|webp|mp4|mov)$/i.test(req.file.originalname);
   if (!allowed) return res.status(400).json({ ok: false, error: 'file_type_not_allowed' });
   const kind = req.body.kind === 'preview' ? 'preview' : 'asset';
+  if (kind === 'preview' && !/\.(jpg|jpeg|png|webp|mp4|mov)$/i.test(req.file.originalname)) return res.status(400).json({ ok: false, error: 'file_type_not_allowed' });
+  const template = await query('select template_id from templates where template_id=$1 and deleted_at is null', [req.params.id]);
+  if (!template.rowCount) return res.status(404).json({ ok: false, error: 'not_found' });
   const key = safeObjectKey(`templates/${req.params.id}`, req.file.originalname);
   let asset;
   if (hasS3Storage()) {

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ASHI ADMIN</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=1.141">
 </head>
 <body>
   <main>
@@ -18,6 +18,7 @@
 
     <section id="login-card" class="card">
       <h1>Acceso propietario</h1>
+      <p id="login-status" role="status"></p>
       <label>Email<input id="email" type="email" autocomplete="username"></label>
       <label>Contrasena<input id="password" type="password" autocomplete="current-password"></label>
       <button id="login" type="button">Entrar</button>
@@ -29,8 +30,10 @@
         <button id="new-template" type="button">Nueva plantilla</button>
         <button id="stats" type="button">Estadisticas</button>
       </div>
-      <div id="status"></div>
+      <div id="status" role="status" aria-live="polite"></div>
       <div id="grid" class="grid"></div>
+      <div class="editor-layout">
+      <div id="template-editor">
       <h2>Plantilla visual</h2>
       <div class="form-grid">
         <label>ID unico<input id="tpl-id" placeholder="subtitulo_pop_001"></label>
@@ -85,9 +88,30 @@
         <button id="save" type="button">Guardar</button>
         <button id="publish" type="button">Publicar</button>
         <button id="unpublish" type="button">Despublicar</button>
+        <button id="delete-template" type="button" class="danger">Eliminar plantilla</button>
+      </div>
+      </div>
+      <aside id="library-preview" class="preview-panel" aria-label="Vista previa de ASHI LIBRARY">
+        <h2>Así se verá en ASHI</h2>
+        <p>Vista de la tarjeta, actualizada mientras editas.</p>
+        <div class="library-shell">
+          <div class="library-heading">ASHI LIBRARY <small>After Effects</small></div>
+          <div class="library-preview-card">
+            <div id="preview-media" class="preview-media"></div>
+            <strong id="preview-name"></strong>
+            <small id="preview-category"></small>
+            <p id="preview-description"></p>
+            <div id="preview-tags" class="preview-tags"></div>
+            <span class="preview-apply">Aplicar plantilla</span>
+          </div>
+        </div>
+        <p id="preview-publication" class="publication"></p>
+        <p id="preview-file-note"></p>
+        <p class="preview-help">Sube un video renderizado de After Effects para ver la animación real. El navegador no renderiza .aep ni .ffx. Los cambios de color y fuente del formulario no alteran el video ya renderizado.</p>
+      </aside>
       </div>
     </section>
   </main>
-  <script src="app.js"></script>
+  <script src="app.js?v=1.141"></script>
 </body>
 </html>

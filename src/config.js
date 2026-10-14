@@ -32,6 +32,9 @@ export const config = {
 
 export function isAllowedOrigin(origin) {
   if (!origin) return true;
+  try {
+    if (config.publicBaseUrl && new URL(config.publicBaseUrl).origin === origin) return true;
+  } catch { /* An invalid configured URL cannot grant access. */ }
   return config.corsOrigins.some((rule) => {
     if (rule === '*') return true;
     if (rule.endsWith('*')) return origin.startsWith(rule.slice(0, -1));
